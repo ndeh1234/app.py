@@ -1,76 +1,62 @@
 # app.py
 
-from flask import Flask,g,jsonify, render_template
+from flask import Flask,g,jsonify, render_template,request
 import requests
 from peewee import *
 from playhouse.shortcuts import model_to_dict
+from flask_sqlalchemy import SQLAlchemy
 
 
 #Configuring database file name
-DATABASE = 'chainsaw.db'
+#DATABASE = 'chainsaw.db'
 
 #define app using Flask
 app = Flask(__name__)
 
-#Connect to the database
-database = SqliteDatabase(DATABASE)
+app.config['DEBUG'] = True
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///weather.db'
+db = SQLAlchemy(app)
 
-#Model class
-class Chainsaw(Model):
-    name = CharField()
-    country = CharField()
-    catches = IntegerField()
+class City (db.model):
+    id = db.column(db.Integer, primary_key = True)
+    name = db.column(db.String(50),nullable = False)
 
-    class Meta:
-        database = database
+@app.route('/', methods = ['POST','GET'])
+def index(request):
+    if request.methods == 'POST':
+        new_city = request.form.get('city')
+        if new_city:
+            new_city_object = City (name = new_city)
+            db.seession.add(new_city_object)
+            db.session.commit()
 
-# Create table for model
-database .create_tables([Chainsaw])
-
-@app.before_request
-def before_request():
-    g.db = database
-    g.db.connect()
-
-@app.after_request
-def after_request(response):
-    g.dbclose()
-    return response
-
-# GET one record by id
-@app.route('/chainsaw_API/chainsaw/<catcher_id>')
-def get_by_id(catcher_id):
-    try:
-        c = Chainsaw.get_by_id(catcher_id)
-        return jsonify(model_to_dict(c))
-    except DoesNotExist:
-        return 'Not found', 404
-
-#GET all records by sending a GET request to chainsaw_API/chainsaw
-@app.route('/chainsaw_API/chainsaw')
-def returnAll():
-    res = Chainsaw.select()
-
-    return jsonify([model_to_dict(c) for c in res])
+    cities = City.query.all()
 
 
 
-# POST to create a new record
-@app.route('/chainsaw_API/chainsaw', methods=['POST'])
-def addOne():
-    with database.atomic():
-        c = Chainsaw.create(**requests.form.to_dict())
-        return jsonify(model_to_dict(c)), 201 # 201 status means resource created
+
+    url = 'http://api.openweathermap.org/data/2.5/weather?q={}&units=imperial&'\
+          'APPID=17959c71c1522324a3b9e201a9ce81a6'
+    city = 'Minneapolis'
+
+    weather_data = []
+
+    for city in cities:
 
 
-# PATCH to modify an existing record
-@app.route('/chainsaw_API/chainsaw/<catcher_id>', methods=['PATCH'])
-def editOne(catcher_id):
-    with database.atomic():
-        Chainsaw.update(**requests.form.to_dict())\
-        .where(Chainsaw.id == catcher_id).execute()\
-        .execute()
-        return 'ok', 200 # 200 means ok, request successful
+      r = request.get(url.format(city)).json()
+
+
+    city_weather = {'city': city.name,
+               'temperature': r ['main']['temp'],
+               'description': r['weather'][0]['description'],
+               'wind speed': r['wind']['speed'],
+               'icon': r['weather'][0]['icon'],
+                }
+
+    weather_data.append(city_weather)
+
+    return render_template('weather.html', weather_data = weather_data)
 
 
 
