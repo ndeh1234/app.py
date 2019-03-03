@@ -8,12 +8,14 @@ from flask_sqlalchemy import SQLAlchemy
 
 
 #Configuring database file name
-#DATABASE = 'chainsaw.db'
+DATABASE = 'chainsaw.db'
 
 #define app using Flask
 app = Flask(__name__)
 
+#Configure and sets debug mode
 app.config['DEBUG'] = True
+
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///weather.db'
 db = SQLAlchemy(app)
 
